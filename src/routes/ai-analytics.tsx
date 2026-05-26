@@ -7,8 +7,10 @@ import { useMounted } from "@/hooks/use-mounted";
 import { store } from "@/lib/storage";
 import { applyClusters, computeRegionMetrics } from "@/lib/kmeans";
 import { generateInsights, generateRecommendations } from "@/lib/ai";
+import { useIntelligenceMemo } from "@/lib/intelligence-store";
+import { foodScoreColor } from "@/lib/intelligence-core";
 import { REGIONS } from "@/lib/seed";
-import { AlertTriangle, Brain, Lightbulb, Sparkles, TrendingUp } from "lucide-react";
+import { AlertTriangle, Brain, Lightbulb, Sparkles, TrendingUp, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/ai-analytics")({ component: AiAnalyticsPage });
 
@@ -29,6 +31,8 @@ const ICON: Record<string, any> = {
 
 function Inner() {
   const mounted = useMounted();
+  const snapshot = useIntelligenceMemo(mounted);
+
   const data = useMemo(() => {
     if (!mounted) return null;
     const w = store.weighs.get();
@@ -77,12 +81,49 @@ function Inner() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Food Security Score */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-emerald-500 animate-pulse" /> AI Food Security Score
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+            {snapshot && [...snapshot.metrics]
+              .sort((a, b) => b.foodSecurityScore - a.foodSecurityScore)
+              .map((m) => {
+                const r = REGIONS.find((x) => x.id === m.regionId);
+                const scoreColor = foodScoreColor(m.foodSecurityScore);
+                return (
+                  <div
+                    key={m.regionId}
+                    className="flex items-center justify-between rounded-lg border p-2.5 bg-card hover:bg-muted/10 transition-colors"
+                  >
+                    <div>
+                      <div className="font-semibold text-xs">{r?.name}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        SDR: {m.sdr.toFixed(2)} · {m.foodSecurityStatus}
+                      </div>
+                    </div>
+                    <Badge
+                      className="text-white font-extrabold text-[10px] px-2 py-0.5"
+                      style={{ backgroundColor: scoreColor }}
+                    >
+                      {m.foodSecurityScore}
+                    </Badge>
+                  </div>
+                );
+              })}
+          </CardContent>
+        </Card>
+
+        {/* Inflation Risk */}
         <Card>
           <CardHeader>
             <CardTitle>AI Prediksi Inflasi Pangan per Wilayah</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
             {data.metrics
               .slice()
               .sort((a, b) => {
@@ -94,12 +135,12 @@ function Inner() {
                 return (
                   <div
                     key={m.regionId}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex items-center justify-between rounded-lg border p-2.5 hover:bg-muted/10 transition-colors"
                   >
                     <div>
-                      <div className="font-medium">{r?.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Supply {m.totalSupply}kg · Demand {m.totalDemand}kg
+                      <div className="font-medium text-xs">{r?.name}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        Supply {m.totalSupply.toLocaleString()}kg · Demand {m.totalDemand.toLocaleString()}kg
                       </div>
                     </div>
                     <Badge
@@ -119,23 +160,24 @@ function Inner() {
           </CardContent>
         </Card>
 
+        {/* Recommendation Engine */}
         <Card>
           <CardHeader>
             <CardTitle>AI Recommendation Engine</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
             {data.recs.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Tidak ada rekomendasi prioritas saat ini.
               </p>
             )}
             {data.recs.map((r) => (
-              <div key={r.id} className="rounded-lg border p-3">
+              <div key={r.id} className="rounded-lg border p-3 hover:bg-muted/10 transition-colors">
                 <div className="mb-1 flex items-center gap-2">
                   <Lightbulb className="h-4 w-4 text-warning" />
                   <span className="font-medium text-sm">Prioritas {r.priority.toUpperCase()}</span>
                 </div>
-                <p className="text-sm">{r.reason}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{r.reason}</p>
               </div>
             ))}
           </CardContent>

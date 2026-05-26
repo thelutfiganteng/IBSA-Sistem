@@ -9,8 +9,10 @@ import { useMounted } from "@/hooks/use-mounted";
 import { store } from "@/lib/storage";
 import { buildGisData, buildDistributionFlows } from "@/lib/price-intel";
 import { GisFoodMap } from "@/components/GisFoodMap";
-import { applyClusters, computeRegionMetrics, kmeans } from "@/lib/kmeans";
-import { REGIONS } from "@/lib/seed";
+import { computeEnrichedMetrics } from "@/lib/kmeans";
+import { useIntelligenceMemo } from "@/lib/intelligence-store";
+import { statusColor, statusBgClass } from "@/lib/intelligence-core";
+import { REGIONS, COMMODITIES } from "@/lib/seed";
 import {
   CloudRain,
   Globe2,
@@ -57,7 +59,9 @@ const REGION_ADM4_MAP: Record<string, string> = {
   "prabumulih": "16.74.02.1001",
   "pagaralam": "16.72.03.1001",
   "musi-rawas": "16.05.09.2001",
-  "empat-lawang": "16.11.02.1001"
+  "empat-lawang": "16.11.02.1001",
+  "ogan-ilir": "16.10.01.1001",
+  "musi-rawas-utara": "16.13.01.1001"
 };
 
 const CLUSTER_COLORS: Record<string, string> = {
@@ -66,6 +70,7 @@ const CLUSTER_COLORS: Record<string, string> = {
   "Stabil": "#0ea5e9",
   "Defisit Sedang": "#f97316",
   "Defisit Tinggi": "#dc2626",
+  "Krisis Pangan": "#7f1d1d",
 };
 
 function mapBmkgToInternal(desc?: string): "cerah" | "hujan" | "badai" {
@@ -90,6 +95,8 @@ function Inner() {
   const { status: wsStatus, logs: wsLogs } = useWebsocket();
   const mounted = useMounted();
   const [tick, setTick] = useState(0);
+  const snapshot = useIntelligenceMemo(mounted);
+  void statusColor; void statusBgClass; // imported for use in choropleth
 
   // Advanced GIS Layer Toggles
   const [showBoundaries, setShowBoundaries] = useState(true);
@@ -101,6 +108,9 @@ function Inner() {
 
   // Selected Region Interactive State
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
+
+  // Commodity Filter State
+  const [selectedCommodity, setSelectedCommodity] = useState<string>("all");
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 15000);
@@ -150,12 +160,15 @@ function Inner() {
 
   const weighs = mounted ? store.weighs.get() : [];
   
+  const filteredWeighs = useMemo(() => {
+    if (selectedCommodity === "all") return weighs;
+    return weighs.filter(w => w.komoditasId === selectedCommodity);
+  }, [weighs, selectedCommodity]);
+  
   // 1. Centralized Data: Compute K-Means metrics and clusters
   const kmeansData = useMemo(() => {
     if (!mounted) return null;
-    const baseMetrics = computeRegionMetrics(weighs);
-    const km = kmeans(baseMetrics, 5);
-    const metrics = applyClusters(baseMetrics);
+    const metrics = computeEnrichedMetrics(filteredWeighs);
 
     const scatterData = metrics.map((m) => ({
       x: m.totalSupply,
@@ -172,12 +185,12 @@ function Inner() {
     });
     const pieData = Object.entries(clusterCount).map(([name, value]) => ({ name, value }));
 
-    return { metrics, scatterData, pieData, centroids: km.centroids, labels: km.labels };
+    return { metrics, scatterData, pieData };
   }, [weighs, tick, mounted]);
 
   // 2. Centralized GIS data populated using the exact K-Means assignments
   const gis = useMemo(() => {
-    const baseGis = buildGisData(weighs);
+    const baseGis = buildGisData(filteredWeighs);
     return baseGis.map((item) => {
       // Find matching K-Means cluster from centralized compute
       const kMatch = kmeansData?.metrics.find((m) => m.regionId === item.regionId);
@@ -199,7 +212,7 @@ function Inner() {
       }
       return merged;
     });
-  }, [weighs, bmkgWeatherData, kmeansData, tick]);
+  }, [filteredWeighs, bmkgWeatherData, kmeansData, tick]);
 
   const flows = useMemo(() => buildDistributionFlows(gis), [gis]);
 
@@ -378,13 +391,30 @@ function Inner() {
                     <Navigation className="h-4 w-4 text-primary" /> Sakelar Layer GIS Sumatera Selatan
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-wrap items-center justify-start gap-x-6 gap-y-3 py-4 px-5">
-                  <Toggle checked={showBoundaries} onChange={setShowBoundaries} label="Batas Administratif" />
-                  <Toggle checked={showHeatmap} onChange={setShowHeatmap} label="Heatmap Inflasi" />
-                  <Toggle checked={showFlows} onChange={setShowFlows} label="Jalur Distribusi AI" />
-                  <Toggle checked={showMarkets} onChange={setShowMarkets} label="Titik Pasar Induk" />
-                  <Toggle checked={showWeather} onChange={setShowWeather} label="Kondisi Cuaca BMKG" />
-                  <Toggle checked={showLogistics} onChange={setShowLogistics} label="Kepadatan Rute Logistik" />
+                <CardContent className="flex flex-col gap-4 py-4 px-5">
+                  <div className="flex flex-wrap items-center justify-start gap-x-6 gap-y-3">
+                    <Toggle checked={showBoundaries} onChange={setShowBoundaries} label="Batas Administratif" />
+                    <Toggle checked={showHeatmap} onChange={setShowHeatmap} label="Heatmap Inflasi" />
+                    <Toggle checked={showFlows} onChange={setShowFlows} label="Jalur Distribusi AI" />
+                    <Toggle checked={showMarkets} onChange={setShowMarkets} label="Titik Pasar Induk" />
+                    <Toggle checked={showWeather} onChange={setShowWeather} label="Kondisi Cuaca BMKG" />
+                    <Toggle checked={showLogistics} onChange={setShowLogistics} label="Kepadatan Rute Logistik" />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 border-t pt-3 mt-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" /> Filter Komoditas Khusus:
+                    </span>
+                    <select 
+                      className="text-xs font-bold rounded-md border-input bg-background px-3 py-1.5 shadow-sm focus:ring-1 focus:ring-primary"
+                      value={selectedCommodity}
+                      onChange={(e) => setSelectedCommodity(e.target.value)}
+                    >
+                      <option value="all">📦 Seluruh Komoditas Gabungan</option>
+                      {COMMODITIES.map(c => (
+                        <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </CardContent>
               </Card>
 

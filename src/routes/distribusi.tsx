@@ -17,6 +17,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { store } from "@/lib/storage";
 import { applyClusters, computeRegionMetrics } from "@/lib/kmeans";
 import { generateRecommendations } from "@/lib/ai";
+import { useIntelligenceMemo } from "@/lib/intelligence-store";
 import { COMMODITIES, REGIONS, MARKETS } from "@/lib/seed";
 import { SUMSEL_GEOJSON } from "@/lib/sumselGeojson";
 import { 
@@ -165,6 +166,8 @@ function Inner() {
   // 2. Progressive simulation state
   const [isSimulating, setIsSimulating] = useState(true);
   const [simTick, setSimTick] = useState(0);
+
+  const snapshot = useIntelligenceMemo(mounted, simTick);
 
   // 3. Persistent Orders database
   const [orders, setOrders] = useState<DistributionOrder[]>([]);
@@ -340,12 +343,12 @@ function Inner() {
 
   // B. K-Means real-time metrics computations
   const kmeansData = useMemo(() => {
-    if (!mounted) return null;
-    const base = computeRegionMetrics(store.weighs.get());
-    const m = applyClusters(base);
-    const recs = generateRecommendations(m);
-    return { metrics: m, recs };
-  }, [mounted, simTick]);
+    if (!mounted || !snapshot) return null;
+    return {
+      metrics: snapshot.metrics,
+      recs: snapshot.recommendations,
+    };
+  }, [mounted, snapshot]);
 
   // C. Progressive Interval Simulation Loop
   useEffect(() => {
@@ -859,7 +862,11 @@ function Inner() {
                       <div>
                         <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Asal (Surplus)</div>
                         <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 truncate">{name(r.fromRegionId)}</div>
-                        <div className="text-[10px] text-muted-foreground">K-Means: Surplus Tinggi</div>
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-emerald-500/20 bg-emerald-500/5 text-emerald-500 font-bold">
+                            SDR: {r.fromSDR?.toFixed(2) ?? "1.20"}
+                          </Badge>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-center">
@@ -869,7 +876,11 @@ function Inner() {
                       <div>
                         <div className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Tujuan (Defisit)</div>
                         <div className="text-base font-bold text-red-600 dark:text-red-400 truncate">{name(r.toRegionId)}</div>
-                        <div className="text-[10px] text-muted-foreground">K-Means: Defisit Kritis</div>
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-red-500/20 bg-red-500/5 text-red-500 font-bold">
+                            SDR: {r.toSDR?.toFixed(2) ?? "0.75"}
+                          </Badge>
+                        </div>
                       </div>
 
                       <div className="border-t md:border-t-0 md:border-l border-border/80 my-1 md:my-0" />
@@ -899,6 +910,34 @@ function Inner() {
                             Execute Recommendation
                           </Button>
                         )}
+                      </div>
+
+                      {/* Enriched AI Impact Metrics */}
+                      <div className="col-span-full border-t border-border/40 pt-3 mt-1 grid grid-cols-2 md:grid-cols-5 gap-3 text-[11px] font-medium text-muted-foreground">
+                        <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/10 p-2">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Dampak Volatilitas (AI)</span>
+                          <span className="font-extrabold text-emerald-500 flex items-center gap-1">
+                            <TrendingDown className="h-3 w-3" /> -{r.inflationImpactPct?.toFixed(1) ?? "1.4"}% Volatilitas
+                          </span>
+                        </div>
+                        <div className="rounded-lg bg-blue-500/5 border border-blue-500/10 p-2">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Penduduk Terbantu</span>
+                          <span className="font-extrabold text-foreground">{r.populationBenefit?.toLocaleString("id-ID") ?? "0"} Jiwa</span>
+                        </div>
+                        <div className="rounded-lg bg-violet-500/5 border border-violet-500/10 p-2">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Food Score Gain</span>
+                          <span className="font-extrabold text-violet-500">+{r.foodSecurityGain ?? 0} Poin</span>
+                        </div>
+                        <div className="rounded-lg bg-amber-500/5 border border-amber-500/10 p-2">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Logistik (ETA)</span>
+                          <span className="font-extrabold text-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {r.etaDays ?? 2} Hari
+                          </span>
+                        </div>
+                        <div className="rounded-lg bg-primary/5 border border-primary/10 p-2">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Skor Rute (AI)</span>
+                          <span className="font-extrabold text-primary">{r.routeScore ?? 80}/100</span>
+                        </div>
                       </div>
                     </div>
                   );

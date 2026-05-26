@@ -68,7 +68,8 @@ export type ClusterLabel =
   | "Surplus Sedang"
   | "Stabil"
   | "Defisit Sedang"
-  | "Defisit Tinggi";
+  | "Defisit Tinggi"
+  | "Krisis Pangan";
 
 export interface AuditEntry {
   id: string;

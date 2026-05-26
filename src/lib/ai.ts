@@ -3,6 +3,7 @@ import { COMMODITIES, REGIONS, MARKETS } from "./seed";
 import { store } from "./storage";
 import { generateForecasts } from "./forecast";
 import { detectAnomalies, buildSnapshots, buildGisData } from "./price-intel";
+import { computeContextEvents, computeThresholdMultiplier } from "./intelligence-core";
 
 export interface AiInsight {
   type: "summary" | "alert" | "recommendation" | "prediction";
@@ -207,6 +208,66 @@ export function chatbotReply(message: string, metrics: RegionMetric[], weighs: W
         : `Data tidak ditemukan untuk ${reg.name}.`;
     }
     return `Status inflasi Sumsel:\n🔴 High: ${high.length} wilayah (${high.map((x) => REGIONS.find((r) => r.id === x.regionId)?.name).slice(0, 5).join(", ") || "-"})\n🟡 Medium: ${med.length} wilayah\n🟢 Low: ${metrics.length - high.length - med.length} wilayah`;
+  }
+
+  // ---- FOOD SECURITY SCORE / SKOR PANGAN ----
+  if (/(food security|food score|skor pangan|skor keamanan pangan)/.test(m)) {
+    if (reg) {
+      const rm = metrics.find((x) => x.regionId === reg.id);
+      return rm && rm.foodSecurityScore !== undefined
+        ? `🌾 Skor Keamanan Pangan ${reg.name} adalah **${rm.foodSecurityScore}/100** (Status: **${rm.cluster}**).`
+        : `Data tidak ditemukan untuk ${reg.name}.`;
+    }
+    const ranked = [...metrics]
+      .filter((x) => x.foodSecurityScore !== undefined)
+      .sort((a, b) => (b.foodSecurityScore ?? 0) - (a.foodSecurityScore ?? 0));
+    
+    const sumselScore = Math.round(
+      metrics.reduce((s, x) => s + (x.foodSecurityScore ?? 50) * (REGIONS.find((r) => r.id === x.regionId)?.population ?? 1), 0) /
+      REGIONS.reduce((s, r) => s + r.population, 0)
+    );
+
+    return `🌾 Keamanan Pangan Sumsel (Rata-rata tertimbang): **${sumselScore}/100**.\n\nLeaderboard Ketahanan Wilayah:\n${ranked
+      .slice(0, 5)
+      .map((x, idx) => `${idx + 1}. ${REGIONS.find((r) => r.id === x.regionId)?.name}: **${x.foodSecurityScore}/100**`)
+      .join("\n")}`;
+  }
+
+  // ---- SUPPLY DEMAND RATIO / SDR ----
+  if (/(sdr|supply demand ratio|rasio suplai)/.test(m)) {
+    if (reg) {
+      const rm = metrics.find((x) => x.regionId === reg.id);
+      const ratio = rm ? (rm.sdr ?? (rm.totalDemand > 0 ? rm.totalSupply / rm.totalDemand : 1.0)) : 1.0;
+      return rm
+        ? `📊 Supply Demand Ratio (SDR) ${reg.name}: **${ratio.toFixed(3)}** (Status: **${rm.cluster}**). Pasokan masuk: ${fmtNum(rm.totalSupply)} kg, Kebutuhan harian: ${fmtNum(Math.round(rm.totalDemand / 30))} kg.`
+        : `Data tidak ditemukan untuk ${reg.name}.`;
+    }
+    const totalS = metrics.reduce((s, x) => s + x.totalSupply, 0);
+    const totalD = metrics.reduce((s, x) => s + x.totalDemand, 0);
+    const globalRatio = totalD > 0 ? totalS / totalD : 0;
+    return `📊 Supply Demand Ratio (SDR) Sumsel secara agregat: **${globalRatio.toFixed(3)}** (${totalS > totalD ? "Surplus" : "Defisit"}).\nTotal Supply: ${fmtNum(totalS)} kg\nTotal Demand: ${fmtNum(totalD)} kg.`;
+  }
+
+  // ---- KRISIS PANGAN / KRISIS ----
+  if (/(krisis pangan|krisis|danger|crisis)/.test(m)) {
+    const crisis = metrics.filter((x) => {
+      const ratio = x.sdr ?? (x.totalDemand > 0 ? x.totalSupply / x.totalDemand : 1.0);
+      return ratio < 0.60 || x.cluster === "Krisis Pangan";
+    });
+    if (!crisis.length) return "Alhamdulillah! Tidak ada wilayah Sumsel dalam status Krisis Pangan (SDR < 0.60) saat ini. Sistem terpantau aman dan terkendali. ✅";
+    return `🚨 PERINGATAN KRISIS PANGAN!\nDitemukan ${crisis.length} wilayah dengan risiko krisis pangan ekstrem (SDR < 0.60):\n${crisis.map((x) => {
+      const ratio = x.sdr ?? (x.totalDemand > 0 ? x.totalSupply / x.totalDemand : 0);
+      return `• ${REGIONS.find((r) => r.id === x.regionId)?.name}: SDR **${ratio.toFixed(3)}** — Butuh bantuan logistik pangan darurat segera!`;
+    }).join("\n")}`;
+  }
+
+  // ---- EVENT AKTIF / RAMADAN / KONTEKS ----
+  if (/(event aktif|ramadan|lebaran|hari besar|konteks|multiplier)/.test(m)) {
+    const evs = computeContextEvents();
+    const active = evs.filter((e: any) => e.active);
+    const mult = computeThresholdMultiplier(evs);
+    if (!active.length) return "Tidak ada event pasar aktif (seperti Ramadan atau cuaca buruk) hari ini. Multiplier threshold: **1.00** (Kondisi normal).";
+    return `🔔 Event Pasar Aktif saat ini:\n${active.map((e: any) => `${e.icon} **${e.name}**: ${e.description}`).join("\n")}\n\nMultiplier Threshold: **×${mult.toFixed(2)}**`;
   }
 
   // ---- CLUSTER ----

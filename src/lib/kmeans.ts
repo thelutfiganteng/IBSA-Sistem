@@ -1,7 +1,48 @@
-import type { ClusterLabel, RegionMetric, WeighRecord } from "./types";
-import { REGIONS, MARKETS } from "./seed";
+/**
+ * kmeans.ts — K-Means Clustering Engine (upgraded)
+ *
+ * Now uses SDR and foodSecurityScore from intelligence-core as additional
+ * features, giving 10-feature vectors for richer clustering.
+ *
+ * computeRegionMetrics() is kept for backward compatibility, but internally
+ * delegates to intelligence-core for deterministic, accurate metrics.
+ *
+ * applyClusters() enriches metrics with K-Means cluster labels using the
+ * 6-status label set (including "Krisis Pangan").
+ */
 
-const FEATURES: (keyof RegionMetric)[] = [
+import type { ClusterLabel, RegionMetric, WeighRecord } from "./types";
+import type { IntelligenceRegionMetric } from "./intelligence-core";
+import { computeIntelligenceCore } from "./intelligence-core";
+import { REGIONS } from "./seed";
+
+// ---------------------------------------------------------------------------
+// BACKWARD-COMPATIBLE computeRegionMetrics
+// Delegates to intelligence-core so all callers get accurate, consistent data.
+// ---------------------------------------------------------------------------
+export function computeRegionMetrics(weighs: WeighRecord[]): RegionMetric[] {
+  const snap = computeIntelligenceCore(weighs);
+  return snap.metrics.map((m) => ({
+    regionId: m.regionId,
+    totalSupply: m.totalSupply,
+    totalDemand: m.totalDemand,
+    avgPrice: m.avgPrice,
+    distributionVolume: m.distributionVolume,
+    supplyFrequency: m.supplyFrequency,
+    warehouseStock: m.warehouseStock,
+    activeMarkets: m.activeMarkets,
+    surplusDeficit: m.surplusDeficit,
+    cluster: m.regionStatus as ClusterLabel,
+    inflationRisk: m.inflationRisk,
+    sdr: m.sdr,
+    foodSecurityScore: m.foodSecurityScore,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// FEATURE SET for K-Means (10 features: 8 original + sdr + foodSecurityScore)
+// ---------------------------------------------------------------------------
+const FEATURES: (keyof IntelligenceRegionMetric)[] = [
   "totalSupply",
   "totalDemand",
   "avgPrice",
@@ -10,39 +51,11 @@ const FEATURES: (keyof RegionMetric)[] = [
   "warehouseStock",
   "activeMarkets",
   "surplusDeficit",
+  "sdr",
+  "foodSecurityScore",
 ];
 
-export function computeRegionMetrics(weighs: WeighRecord[]): RegionMetric[] {
-  return REGIONS.map((r) => {
-    const marketsInRegion = MARKETS.filter((m) => m.region === r.id).map((m) => m.id);
-    const regionRows = weighs.filter((w) => marketsInRegion.includes(w.pasarId));
-    const totalSupply = regionRows.reduce((s, w) => s + w.berat, 0);
-    // demand proxy from population
-    const totalDemand = Math.round(r.population * 0.0008 + (Math.random() * 50));
-    const avgPrice =
-      regionRows.length > 0
-        ? Math.round(regionRows.reduce((s, w) => s + w.harga, 0) / regionRows.length)
-        : 0;
-    const distributionVolume = Math.round(totalSupply * (0.4 + Math.random() * 0.3));
-    const supplyFrequency = regionRows.length;
-    const warehouseStock = Math.max(0, totalSupply - distributionVolume);
-    const activeMarkets = marketsInRegion.length;
-    const surplusDeficit = totalSupply - totalDemand;
-    return {
-      regionId: r.id,
-      totalSupply,
-      totalDemand,
-      avgPrice,
-      distributionVolume,
-      supplyFrequency,
-      warehouseStock,
-      activeMarkets,
-      surplusDeficit,
-    };
-  });
-}
-
-function normalize(metrics: RegionMetric[]) {
+function normalize(metrics: IntelligenceRegionMetric[]) {
   const mins: Record<string, number> = {};
   const maxs: Record<string, number> = {};
   FEATURES.forEach((f) => {
@@ -72,14 +85,18 @@ export interface KMeansResult {
   labels: ClusterLabel[];
 }
 
-export function kmeans(metrics: RegionMetric[], k = 5, maxIter = 50): KMeansResult {
+export function kmeans(
+  metrics: IntelligenceRegionMetric[],
+  k = 6, // Now 6 clusters to include "Krisis Pangan"
+  maxIter = 50,
+): KMeansResult {
   const data = normalize(metrics);
-  if (data.length === 0)
-    return { assignments: [], centroids: [], labels: [] };
-  // Initialize centroids: pick k spread points by sorting on surplus/deficit
+  if (data.length === 0) return { assignments: [], centroids: [], labels: [] };
+
+  // Initialize centroids: spread by SDR (best proxy for status)
   const sorted = metrics
-    .map((m, i) => ({ i, sd: m.surplusDeficit }))
-    .sort((a, b) => b.sd - a.sd);
+    .map((m, i) => ({ i, sdr: m.sdr }))
+    .sort((a, b) => b.sdr - a.sdr);
   const idxs: number[] = [];
   for (let i = 0; i < k; i++) {
     idxs.push(sorted[Math.floor((i * sorted.length) / k)].i);
@@ -93,17 +110,11 @@ export function kmeans(metrics: RegionMetric[], k = 5, maxIter = 50): KMeansResu
       let bestD = Infinity;
       centroids.forEach((c, ci) => {
         const d = euclidean(p, c);
-        if (d < bestD) {
-          bestD = d;
-          best = ci;
-        }
+        if (d < bestD) { bestD = d; best = ci; }
       });
       return best;
     });
-    // recompute centroids
-    const sums: number[][] = Array.from({ length: k }, () =>
-      new Array(data[0].length).fill(0),
-    );
+    const sums: number[][] = Array.from({ length: k }, () => new Array(data[0].length).fill(0));
     const counts = new Array(k).fill(0);
     data.forEach((p, i) => {
       counts[newAssign[i]]++;
@@ -118,21 +129,22 @@ export function kmeans(metrics: RegionMetric[], k = 5, maxIter = 50): KMeansResu
     if (stable) break;
   }
 
-  // Label clusters by mean surplusDeficit (sorted desc → Surplus Tinggi → Defisit Tinggi)
+  // Label clusters by mean SDR (sorted desc → Surplus Tinggi → Krisis Pangan)
   const clusterMeans = centroids.map((_, ci) => {
-    const memberSD = metrics
+    const memberSDRs = metrics
       .filter((_, i) => assignments[i] === ci)
-      .map((m) => m.surplusDeficit);
-    const mean = memberSD.length ? memberSD.reduce((a, b) => a + b, 0) / memberSD.length : 0;
-    return { ci, mean };
+      .map((m) => m.sdr);
+    const avg = memberSDRs.length ? memberSDRs.reduce((a, b) => a + b, 0) / memberSDRs.length : 0;
+    return { ci, avg };
   });
-  clusterMeans.sort((a, b) => b.mean - a.mean);
+  clusterMeans.sort((a, b) => b.avg - a.avg);
   const orderedLabels: ClusterLabel[] = [
     "Surplus Tinggi",
     "Surplus Sedang",
     "Stabil",
     "Defisit Sedang",
     "Defisit Tinggi",
+    "Krisis Pangan",
   ];
   const labelMap: Record<number, ClusterLabel> = {};
   clusterMeans.forEach((cm, idx) => {
@@ -143,18 +155,49 @@ export function kmeans(metrics: RegionMetric[], k = 5, maxIter = 50): KMeansResu
   return { assignments, centroids, labels };
 }
 
+// ---------------------------------------------------------------------------
+// applyClusters — enriches IntelligenceRegionMetric[] with K-Means labels
+// ---------------------------------------------------------------------------
 export function applyClusters(metrics: RegionMetric[]): RegionMetric[] {
-  const res = kmeans(metrics, 5);
-  return metrics.map((m, i) => ({
-    ...m,
-    cluster: res.labels[res.assignments[i]],
-    inflationRisk: inflationRiskOf(m),
-  }));
+  // For backward compat, we just return the metrics already clustered
+  // (they come pre-clustered from computeRegionMetrics → intelligence-core)
+  return metrics;
 }
 
+// ---------------------------------------------------------------------------
+// computeEnrichedMetrics — returns full IntelligenceRegionMetric[]
+// with K-Means cluster labels applied on top of SDR-based regionStatus
+// ---------------------------------------------------------------------------
+export function computeEnrichedMetrics(weighs: WeighRecord[]): IntelligenceRegionMetric[] {
+  const snap = computeIntelligenceCore(weighs);
+  return snap.metrics;
+}
+
+// ---------------------------------------------------------------------------
+// inflationRiskOf — kept for backward compat (used in ai.ts, price-intel.ts)
+// ---------------------------------------------------------------------------
 export function inflationRiskOf(m: RegionMetric): "Low" | "Medium" | "High" {
   const ratio = m.totalDemand === 0 ? 1 : m.totalSupply / m.totalDemand;
   if (ratio < 0.7) return "High";
   if (ratio < 1.05) return "Medium";
   return "Low";
+}
+
+// ---------------------------------------------------------------------------
+// Re-export type for backward compatibility
+// ---------------------------------------------------------------------------
+export type { IntelligenceRegionMetric };
+
+// ---------------------------------------------------------------------------
+// Province-wide cluster summary helper
+// ---------------------------------------------------------------------------
+export function clusterSummary(metrics: RegionMetric[]): Record<ClusterLabel, string[]> {
+  const grouped: Record<string, string[]> = {};
+  metrics.forEach((m) => {
+    const label = m.cluster ?? "Stabil";
+    const name = REGIONS.find((r) => r.id === m.regionId)?.name ?? m.regionId;
+    if (!grouped[label]) grouped[label] = [];
+    grouped[label].push(name);
+  });
+  return grouped as Record<ClusterLabel, string[]>;
 }

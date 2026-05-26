@@ -29,6 +29,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useAuthUser } from "@/hooks/use-auth";
 import { logAudit } from "@/lib/audit";
 import { toast } from "sonner";
+import { validateWeight } from "@/lib/intelligence-core";
 import {
   Camera,
   Plug,
@@ -108,6 +109,8 @@ function TimbanganInner() {
   const [photo, setPhoto] = useState("");
   const [harga, setHarga] = useState<number>(COMMODITIES[3].basePrice);
   const [rows, setRows] = useState<WeighRecord[]>([]);
+
+  const weightValidation = weight !== null ? validateWeight(komoditas, weight) : null;
 
   // AI Vision Advanced Controls
   const [scanMode, setScanMode] = useState<"face" | "commodity" | "multi">("face");
@@ -521,6 +524,15 @@ function TimbanganInner() {
 
     const currentMarket = MARKETS.find((m) => m.id === pasar)!;
     const isMismatch = scanCommodityVal !== komoditas;
+    const weightValidation = validateWeight(komoditas, weight);
+
+    if (!weightValidation.isValid) {
+      if (weightValidation.severity === "critical") {
+        toast.error(`[AI Weight Anomaly] ${weightValidation.message}`);
+      } else {
+        toast.warning(`[AI Weight Warning] ${weightValidation.message}`);
+      }
+    }
 
     const record: WeighRecord = {
       id: `w-${Date.now()}`,
@@ -533,8 +545,10 @@ function TimbanganInner() {
       foto: photo || COMMODITY_IMAGES[komoditas],
       lokasi: currentMarket.name,
       status_supply: "incoming",
-      aiLabel: isMismatch 
-        ? `Anomaly Detected: Input ${komoditas} vs visual Scan ${scanCommodityVal}` 
+      aiLabel: !weightValidation.isValid
+        ? `Weight Anomaly: ${weightValidation.message}`
+        : isMismatch 
+        ? `Vision Anomaly: Input ${komoditas} vs visual Scan ${scanCommodityVal}` 
         : `Verified: ${komoditas} (${scanCommodityVal === "cabai" ? "Kualitas Baik" : "Premium"})`,
     };
 
@@ -876,6 +890,23 @@ function TimbanganInner() {
                           </div>
                         </>
                       )}
+                    </div>
+                  )}
+
+                  {/* AI Weight Range Validation Banner */}
+                  {weightValidation && !weightValidation.isValid && (
+                    <div className={`rounded-lg border p-3 text-xs flex items-start gap-2.5 ${
+                      weightValidation.severity === "critical"
+                        ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400 animate-pulse"
+                        : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+                    }`}>
+                      <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">
+                          {weightValidation.severity === "critical" ? "🚨 ANOMALI BERAT KRITIS:" : "⚠️ PERINGATAN BATAS BERAT:"}
+                        </span>{" "}
+                        {weightValidation.message} (Batas wajar: {weightValidation.expectedMin} - {weightValidation.expectedMax} kg)
+                      </div>
                     </div>
                   )}
 

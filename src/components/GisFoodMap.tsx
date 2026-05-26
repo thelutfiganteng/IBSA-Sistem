@@ -4,13 +4,14 @@ import { SUMSEL_GEOJSON } from "@/lib/sumselGeojson";
 import { MARKETS } from "@/lib/seed";
 import "leaflet/dist/leaflet.css";
 
-// 5-Level AI Clustering Color Scale
+// 6-Level AI Clustering Color Scale
 const CLUSTER_METADATA = {
   "Surplus Tinggi": { color: "#15803d", label: "Surplus Tinggi" },
   "Surplus Sedang": { color: "#84cc16", label: "Surplus Sedang" },
   "Stabil": { color: "#0ea5e9", label: "Stabil" },
   "Defisit Sedang": { color: "#f97316", label: "Defisit Sedang" },
   "Defisit Tinggi": { color: "#dc2626", label: "Defisit Tinggi" },
+  "Krisis Pangan": { color: "#7f1d1d", label: "Krisis Pangan" },
 } as const;
 
 export function getClusterName(surplus: number): keyof typeof CLUSTER_METADATA {
@@ -18,7 +19,8 @@ export function getClusterName(surplus: number): keyof typeof CLUSTER_METADATA {
   if (surplus > 30) return "Surplus Sedang";
   if (surplus >= -30) return "Stabil";
   if (surplus >= -150) return "Defisit Sedang";
-  return "Defisit Tinggi";
+  if (surplus >= -300) return "Defisit Tinggi";
+  return "Krisis Pangan";
 }
 
 export function getClusterColor(surplus: number): string {
@@ -63,7 +65,6 @@ export function GisFoodMap({
     (async () => {
       if (typeof window === "undefined" || !ref.current) return;
       const L = (await import("leaflet")).default;
-      await import("leaflet/dist/leaflet.css");
       
       if (!active || !ref.current) return;
 

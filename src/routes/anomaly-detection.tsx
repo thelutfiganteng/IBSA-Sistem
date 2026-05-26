@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useMounted } from "@/hooks/use-mounted";
 import { store } from "@/lib/storage";
 import { detectAnomalies, summarizeAnomalies, type Anomaly } from "@/lib/price-intel";
+import { useIntelligenceMemo } from "@/lib/intelligence-store";
+import { statusBgClass } from "@/lib/intelligence-core";
 import {
   AlertOctagon,
   AlertTriangle,
@@ -16,6 +18,7 @@ import {
   ShieldAlert,
   Sparkles,
   TrendingDown,
+  Activity,
 } from "lucide-react";
 
 export const Route = createFileRoute("/anomaly-detection")({ component: Page });
@@ -46,6 +49,7 @@ function Inner() {
   const mounted = useMounted();
   const [tick, setTick] = useState(0);
   const [filter, setFilter] = useState<"all" | Anomaly["severity"]>("all");
+  const snapshot = useIntelligenceMemo(mounted);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 8000);
@@ -58,6 +62,10 @@ function Inner() {
 
   const filtered =
     filter === "all" ? anomalies : anomalies.filter((a) => a.severity === filter);
+
+  // Statistical anomalies from Core Brain Engine (mean ± 2σ)
+  const statAnomalies = snapshot?.metrics.filter((m) => m.isAnomaly) ?? [];
+  const allRegionsWithBounds = snapshot?.metrics ?? [];
 
   return (
     <div className="space-y-6">
@@ -130,6 +138,79 @@ function Inner() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Statistical Anomaly Bounds from Core Brain Engine */}
+      <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-background">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Activity className="h-4 w-4 text-blue-400" />
+            Deteksi Anomali Statistik (Mean ± 2σ)
+            <Badge className="ml-auto border border-blue-500/40 bg-blue-500/20 text-blue-300 text-xs">
+              Core Brain Engine
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {statAnomalies.length > 0 && (
+            <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm">
+              <div className="flex items-center gap-2 text-red-400 font-semibold mb-1">
+                <Flame className="h-4 w-4" />
+                {statAnomalies.length} wilayah terdeteksi anomali harga statistik
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {statAnomalies.map((m) => (
+                  <Badge key={m.regionId} className="border border-red-500/40 bg-red-500/20 text-red-300 text-xs">
+                    {m.regionName.replace('Kab. ', '').replace('Kota ', '')} (score: {m.anomalyScore})
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3">
+            {allRegionsWithBounds.slice(0, 12).map((m) => (
+              <div
+                key={m.regionId}
+                className={`rounded-lg border px-3 py-2 ${
+                  m.isAnomaly
+                    ? 'border-red-500/40 bg-red-500/10'
+                    : 'border-white/10 bg-background/50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium">
+                    {m.regionName.replace('Kab. ', '').replace('Kota ', '')}
+                  </span>
+                  <Badge className={statusBgClass(m.regionStatus) + ' text-[10px] border px-1 py-0'}>
+                    {m.regionStatus}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-1 text-[10px] text-muted-foreground">
+                  <div>
+                    <div className="text-emerald-400 font-mono">{m.anomalyLowerBound.toLocaleString('id-ID')}</div>
+                    <div>Min (−2σ)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`font-mono font-bold ${m.isAnomaly ? 'text-red-400' : 'text-foreground'}`}>
+                      {m.avgPrice.toLocaleString('id-ID')}
+                    </div>
+                    <div>Avg Rp/kg</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-orange-400 font-mono">{m.anomalyUpperBound.toLocaleString('id-ID')}</div>
+                    <div>Max (+2σ)</div>
+                  </div>
+                </div>
+                {m.isAnomaly && (
+                  <div className="mt-1 text-[10px] text-red-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Harga di luar batas normal — skor anomali: {m.anomalyScore}/100
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filter */}
       <div className="flex gap-2">

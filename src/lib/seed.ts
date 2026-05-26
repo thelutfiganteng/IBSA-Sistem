@@ -34,6 +34,8 @@ export const REGIONS: Region[] = [
   { id: "pali", name: "Kab. PALI", lat: -3.25, lng: 103.95, population: 200000, kemendagriCode: "16.12.00.0000", bpsCode: "1612" },
   { id: "oku-selatan", name: "Kab. OKU Selatan", lat: -4.55, lng: 103.85, population: 360000, kemendagriCode: "16.08.00.0000", bpsCode: "1606" },
   { id: "oku-timur", name: "Kab. OKU Timur", lat: -4.13, lng: 104.65, population: 660000, kemendagriCode: "16.09.00.0000", bpsCode: "1609" },
+  { id: "ogan-ilir", name: "Kab. Ogan Ilir", lat: -3.25, lng: 104.62, population: 440000, kemendagriCode: "16.10.00.0000", bpsCode: "1610" },
+  { id: "musi-rawas-utara", name: "Kab. Musi Rawas Utara", lat: -2.48, lng: 103.0, population: 200000, kemendagriCode: "16.13.00.0000", bpsCode: "1613" },
 ];
 
 export const DEMO_USERS = [

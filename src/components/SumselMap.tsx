@@ -3,13 +3,14 @@ import type { RegionMetric } from "@/lib/types";
 import { SUMSEL_GEOJSON } from "@/lib/sumselGeojson";
 import "leaflet/dist/leaflet.css";
 
-// 5-Level AI Clustering Color Scale matching the design system
+// 6-Level AI Clustering Color Scale matching the design system
 const CLUSTER_COLORS: Record<string, string> = {
   "Surplus Tinggi": "#15803d",
   "Surplus Sedang": "#84cc16",
   "Stabil": "#0ea5e9",
   "Defisit Sedang": "#f97316",
   "Defisit Tinggi": "#dc2626",
+  "Krisis Pangan": "#7f1d1d",
 };
 
 export function SumselMap({ metrics }: { metrics: RegionMetric[] }) {
@@ -22,7 +23,6 @@ export function SumselMap({ metrics }: { metrics: RegionMetric[] }) {
     (async () => {
       if (typeof window === "undefined" || !ref.current) return;
       const L = (await import("leaflet")).default;
-      await import("leaflet/dist/leaflet.css");
 
       if (!active || !ref.current) return;
       if (mapRef.current) {

@@ -8,6 +8,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { store } from "@/lib/storage";
 import { buildSnapshots, buildVolatilitySeries, buildPriceSeries, type PriceSnapshot } from "@/lib/price-intel";
 import { COMMODITIES, MARKETS, REGIONS } from "@/lib/seed";
+import { useIntelligenceMemo } from "@/lib/intelligence-store";
 import { toast } from "sonner";
 import {
   Activity,
@@ -55,6 +56,13 @@ function Inner() {
     const id = setInterval(() => setTick((t) => t + 1), 6000);
     return () => clearInterval(id);
   }, []);
+
+  const snapshot = useIntelligenceMemo(mounted, tick);
+  const regionMetric = useMemo(() => {
+    if (!snapshot) return null;
+    const regionId = MARKETS.find((m) => m.id === selectedMarket)?.region;
+    return snapshot.metrics.find((m) => m.regionId === regionId) ?? null;
+  }, [snapshot, selectedMarket]);
 
   const weighs = mounted ? store.weighs.get() : [];
   const snapshots: PriceSnapshot[] = useMemo(() => buildSnapshots(weighs), [weighs, tick]);
@@ -391,6 +399,33 @@ function Inner() {
           {selVol && selVol.spikes.length > 0 && (
             <div className="mt-3 rounded-lg border-l-4 border-amber-500 bg-amber-500/10 p-3 text-sm">
               <b>AI Spike Detection:</b> Terdeteksi {selVol.spikes.length} lonjakan signifikan dalam 21 hari terakhir. Volatilitas market: {(selVol.volatility * 100).toFixed(1)}%.
+            </div>
+          )}
+
+          {regionMetric && (
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 border-t pt-4 text-xs font-semibold">
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <span className="text-[10px] text-muted-foreground uppercase block mb-1">Volatilitas Regional (AI Engine)</span>
+                <span className="text-sm font-bold text-foreground">{regionMetric.volatility}%</span>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <span className="text-[10px] text-muted-foreground uppercase block mb-1">Batas Anomali Statis (2σ)</span>
+                <span className="text-sm font-bold text-foreground">
+                  Rp{regionMetric.anomalyLowerBound.toLocaleString("id-ID")} - Rp{regionMetric.anomalyUpperBound.toLocaleString("id-ID")}
+                </span>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <span className="text-[10px] text-muted-foreground uppercase block mb-1">Status Deteksi Anomali</span>
+                <span className={`text-sm font-bold flex items-center gap-1.5 ${
+                  regionMetric.isAnomaly ? "text-red-500 animate-pulse" : "text-emerald-500"
+                }`}>
+                  {regionMetric.isAnomaly ? "⚠️ Anomali Terdeteksi" : "🟢 Normal"}
+                </span>
+              </div>
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <span className="text-[10px] text-muted-foreground uppercase block mb-1">Moving Average 7 Hari</span>
+                <span className="text-sm font-bold text-blue-500">Rp{regionMetric.movingAverage7d.toLocaleString("id-ID")}</span>
+              </div>
             </div>
           )}
         </CardContent>

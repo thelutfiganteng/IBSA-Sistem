@@ -296,6 +296,7 @@ const CLUSTER_COLORS: Record<string, string> = {
   Stabil: "#0ea5e9",
   "Defisit Sedang": "#f59e0b",
   "Defisit Tinggi": "#dc2626",
+  "Krisis Pangan": "#7f1d1d",
 };
 
 function RegionRow({ metric, positive }: { metric: RegionMetric; positive?: boolean }) {

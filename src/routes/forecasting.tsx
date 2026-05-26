@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useMounted } from "@/hooks/use-mounted";
 import { store } from "@/lib/storage";
 import { applyClusters, computeRegionMetrics } from "@/lib/kmeans";
+import { useIntelligenceMemo } from "@/lib/intelligence-store";
 import {
   generateForecasts,
   type CommodityForecast,
@@ -64,6 +65,7 @@ const RISK_DOT: Record<RiskLevel, string> = {
 function Inner() {
   const mounted = useMounted();
   const [komoditas, setKomoditas] = useState<string>("cabai");
+  const snapshot = useIntelligenceMemo(mounted);
 
   const data = useMemo(() => {
     if (!mounted) return null;
@@ -73,6 +75,9 @@ function Inner() {
   }, [mounted]);
 
   if (!data) return <div className="text-muted-foreground">Memuat engine AI…</div>;
+
+  const activeEvents = snapshot?.activeEvents.filter((e) => e.active) ?? [];
+  const thresholdMultiplier = snapshot?.metrics[0]?.dynamicThresholdMultiplier ?? 1.0;
 
   const filtered = data.bundle.rows.filter((r) => r.komoditasId === komoditas);
   const topRisk = [...data.bundle.rows].sort((a, b) => b.inflationPct - a.inflationPct).slice(0, 8);
@@ -138,6 +143,36 @@ function Inner() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Context Events Banner */}
+      {snapshot && activeEvents.length > 0 && (
+        <Card className="border border-primary/30 bg-primary/5 shadow-sm overflow-hidden">
+          <CardContent className="p-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/20 text-primary">
+                <Sparkles className="h-5 w-5 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold">Konteks Pasar Aktif (AI Dynamic Threshold)</h4>
+                <p className="text-xs text-muted-foreground">
+                  AI mendeteksi event aktif yang memengaruhi elastisitas demand pangan & threshold peringatan.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {activeEvents.map((e) => (
+                <Badge key={e.name} variant="outline" className="bg-background/80 px-2.5 py-1 text-xs font-semibold gap-1.5 border-primary/25 text-primary">
+                  <span>{e.icon}</span>
+                  <span>{e.name}</span>
+                </Badge>
+              ))}
+              <Badge className="bg-primary/95 text-white text-xs font-extrabold px-2.5 py-1 shadow border border-primary/30">
+                Multiplier Threshold: ×{thresholdMultiplier.toFixed(2)}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Early Warning */}
       {data.bundle.alerts.length > 0 && (

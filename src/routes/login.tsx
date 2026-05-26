@@ -1,16 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { login } from "@/lib/auth";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import { DEMO_USERS, ROLE_LABEL } from "@/lib/seed";
 import { toast } from "sonner";
 import { Sparkles, Wheat, Camera, Loader2 } from "lucide-react";
 import Webcam from "react-webcam";
-import { useRef, useCallback } from "react";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -19,26 +18,74 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("bi@demo.id");
-  const [password, setPassword] = useState("demo");
+  const [password, setPassword] = useState("demo123");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const u = login(email, password);
-    if (!u) {
-      toast.error("Email atau password salah");
-      return;
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+      
+      toast.success("Login berhasil!");
+      navigate({ to: "/dashboard" });
+    } catch (err: any) {
+      toast.error(err.message || "Email atau password salah");
+    } finally {
+      setIsSubmitting(false);
     }
-    toast.success(`Selamat datang, ${u.name}`);
-    navigate({ to: "/dashboard" });
   };
 
-  const quick = (em: string) => {
-    setEmail(em);
-    setPassword("demo");
-    const u = login(em, "demo");
-    if (u) {
-      toast.success(`Login sebagai ${u.name}`);
+  const quick = async (em: string) => {
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: em,
+        password: "demo123",
+      });
+      if (error) throw error;
+      toast.success(`Login berhasil sebagai ${em}`);
       navigate({ to: "/dashboard" });
+    } catch (err: any) {
+      toast.error(err.message || "Gagal quick login");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const passwordlessLogin = async (em: string) => {
+    setIsSubmitting(true);
+    try {
+      console.log(`[Biometrik] Menghasilkan token login untuk: ${em}`);
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: em,
+      });
+      if (linkError) throw linkError;
+
+      if (linkData?.properties?.email_otp) {
+        console.log(`[Biometrik] Memverifikasi token OTP...`);
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: em,
+          token: linkData.properties.email_otp,
+          type: 'magiclink',
+        });
+        if (verifyError) throw verifyError;
+        
+        toast.success(`Login biometrik sukses! Selamat datang.`);
+        navigate({ to: "/dashboard" });
+      } else {
+        throw new Error("Token biometrik tidak dapat di-generate.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Gagal masuk lewat biometrik");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -71,12 +118,10 @@ function LoginPage() {
         throw new Error(data.detail || "Wajah tidak dikenali");
       }
 
-      // If matched, user object is returned from python backend
-      // We can map it to our frontend user. For now, let's just use quick login with the matched email
+      // If matched, we log them in passwordlessly via admin generated magiclink
       if (data.user && data.user.username) {
         toast.success(`Wajah Cocok: ${data.user.full_name}`);
-        // Mock email format from username if needed, or if username is email
-        quick(data.user.username);
+        await passwordlessLogin(data.user.username);
       } else {
         toast.error("Wajah cocok tetapi data pengguna tidak lengkap.");
       }
@@ -124,7 +169,7 @@ function LoginPage() {
           <CardHeader>
             <CardTitle className="text-2xl">Login</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Pilih role atau gunakan akun demo (password: <code>demo</code>)
+              Pilih role atau gunakan akun demo (password: <code>demo123</code>)
             </p>
           </CardHeader>
           <CardContent>

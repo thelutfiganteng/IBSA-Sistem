@@ -10,3 +10,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export const supabaseAdmin = createClient(
+  supabaseUrl,
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9yZ2ZiZmR3c2R1cGxmd2RoeGluIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTc4MjEwNiwiZXhwIjoyMDk1MzU4MTA2fQ.FdpRWKk8yZRyow7d1GfMSsJjp_vKFIn6lREFO4hHE-k",
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+

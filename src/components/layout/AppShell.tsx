@@ -19,6 +19,9 @@ import {
   Radio,
   ShieldAlert,
   Globe2,
+  Users,
+  UserPlus,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +40,8 @@ const ALL_NAV = [
   { to: "/gis-map", label: "GIS Smart Food Map & Clustering", icon: Globe2, key: "gis-map" },
   { to: "/ai-center", label: "AI Command Center", icon: Brain, key: "ai-center" },
   { to: "/distribusi", label: "Distribusi Supply", icon: Truck, key: "distribusi" },
+  { to: "/petugas", label: "Direktori & Registrasi Petugas", icon: Users, key: "petugas" },
+  { to: "/aktivitas-petugas", label: "Log Aktivitas Petugas", icon: Activity, key: "aktivitas-petugas" },
   { to: "/laporan", label: "Laporan", icon: FileText, key: "laporan" },
 ];
 
@@ -54,9 +59,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ensureSeed().then(() => {
         setReady(true);
       });
-      if (!user) navigate({ to: "/login" });
+      if (!user) {
+        navigate({ to: "/login" });
+      } else if (user.role === "pasar" && path !== "/timbangan") {
+        navigate({ to: "/timbangan" });
+      }
     }
-  }, [mounted, user, navigate]);
+  }, [mounted, user, navigate, path]);
 
   if (!mounted || !user || !ready) {
     return (
@@ -69,8 +78,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const nav = ALL_NAV.filter((n) => canAccess(user.role, n.key));
   const auditCount = store.audit.get().length;
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate({ to: "/login" });
   };
 

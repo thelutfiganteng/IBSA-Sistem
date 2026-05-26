@@ -30,6 +30,8 @@ import { useAuthUser } from "@/hooks/use-auth";
 import { logAudit } from "@/lib/audit";
 import { toast } from "sonner";
 import { validateWeight } from "@/lib/intelligence-core";
+import Webcam from "react-webcam";
+import { supabaseAdmin } from "@/lib/supabase";
 import {
   Camera,
   Plug,
@@ -138,6 +140,7 @@ function TimbanganInner() {
   ]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const webcamRef = useRef<Webcam>(null);
 
   // Load baseline logs & weighs
   useEffect(() => {
@@ -149,6 +152,31 @@ function TimbanganInner() {
         setPetugas(user.name);
         setRegName(user.name);
       }
+
+      // Load active officers dynamically from Supabase
+      const fetchProfiles = async () => {
+        try {
+          const { data, error } = await supabaseAdmin
+            .from("profiles")
+            .select("id, full_name, role, username")
+            .limit(10);
+
+          if (!error && data) {
+            const mapped = data.map((p, idx) => ({
+              id: `OFF-${(idx + 1).toString().padStart(3, "0")}`,
+              name: p.full_name || "Tanpa Nama",
+              role: p.role === "bi" ? "BI Analyst" : p.role === "bps" ? "BPS Surveyor" : p.role === "pemprov" ? "Pemprov Staff" : p.role === "dinas" ? "Dinas Pangan" : "Petugas Timbang",
+              pasarId: "jakabaring",
+              photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop",
+              status: "Active" as const
+            }));
+            setOfficers(mapped);
+          }
+        } catch (err) {
+          console.error("Error fetching profiles for officers list:", err);
+        }
+      };
+      fetchProfiles();
     }
     return () => off();
   }, [mounted, user]);
@@ -237,9 +265,14 @@ function TimbanganInner() {
       frame++;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Dark sci-fi background feed
-      ctx.fillStyle = "#09101d";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Draw Webcam video if ready, otherwise fallback to deep dark sci-fi background
+      const video = webcamRef.current?.video;
+      if (video && video.readyState === video.HAVE_ENOUGH_DATA) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = "#09101d";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       // Grid overlays
       ctx.strokeStyle = "rgba(14, 165, 233, 0.05)";
@@ -495,8 +528,13 @@ function TimbanganInner() {
     const comIcon = COMMODITIES.find((c) => c.id === komoditas)?.name ?? "Cabai Merah";
     toast.success(`IoT Berat Stabil: ${targetWeight} kg. Foto otomatis ditangkap & diunggah!`);
 
-    // Attach local dummy photo corresponding to commodity visually scanned
-    setPhoto(COMMODITY_IMAGES[scanCommodityVal] ?? "");
+    // Capture real snapshot from Webcam if active, otherwise use seed image
+    const screenshot = webcamRef.current?.getScreenshot();
+    if (screenshot) {
+      setPhoto(screenshot);
+    } else {
+      setPhoto(COMMODITY_IMAGES[scanCommodityVal] ?? "");
+    }
 
     // Check if input selection matches AI vision
     const isMismatch = scanCommodityVal !== komoditas;
@@ -668,6 +706,14 @@ function TimbanganInner() {
                 height={480}
                 className="w-full h-full object-cover"
               />
+              <div className="hidden">
+                <Webcam
+                  ref={webcamRef}
+                  audio={false}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ width: 640, height: 480, facingMode: "user" }}
+                />
+              </div>
               {cameraFlash && (
                 <div className="absolute inset-0 bg-white transition-opacity opacity-100" />
               )}

@@ -1,9 +1,9 @@
-import type { AuditEntry, User, WeighRecord } from "./types";
+import type { AuditEntry, WeighRecord } from "./types";
 import { COMMODITIES, MARKETS } from "./seed";
-import { supabase } from "./supabase";
+import { supabase, supabaseAdmin } from "./supabase";
+import { seedSupabaseUsers } from "./seed-supabase";
 
 const KEYS = {
-  user: "sfs:user",
   theme: "sfs:theme",
   seeded: "sfs:seeded",
 } as const;
@@ -30,7 +30,6 @@ export function setLS<T>(key: string, value: T) {
 // In-memory cache for synchronous reads in components
 let cachedWeighs: WeighRecord[] = [];
 let cachedAudit: AuditEntry[] = [];
-let weighsLoaded = false;
 
 // Convert DB snake_case to frontend camelCase
 function mapDbToWeighRecord(dbRow: any): WeighRecord {
@@ -50,17 +49,12 @@ function mapDbToWeighRecord(dbRow: any): WeighRecord {
 }
 
 export const store = {
-  user: {
-    get: () => getLS<User | null>(KEYS.user, null),
-    set: (u: User | null) => setLS(KEYS.user, u),
-  },
   weighs: {
     get: () => {
-      // If not loaded, we return cache or empty. React components will re-render once load() finishes if they are subscribed.
       return cachedWeighs;
     },
     load: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('weigh_records')
         .select('*')
         .order('tanggal', { ascending: false })
@@ -68,7 +62,6 @@ export const store = {
       
       if (!error && data) {
         cachedWeighs = data.map(mapDbToWeighRecord);
-        weighsLoaded = true;
       }
       return cachedWeighs;
     },
@@ -77,7 +70,7 @@ export const store = {
     },
     add: async (row: WeighRecord) => {
       cachedWeighs = [row, ...cachedWeighs];
-      await supabase.from('weigh_records').insert({
+      await supabaseAdmin.from('weigh_records').insert({
         id: row.id,
         tanggal: row.tanggal,
         komoditas_id: row.komoditasId,
@@ -93,21 +86,19 @@ export const store = {
     },
     update: async (id: string, patch: Partial<WeighRecord>) => {
       cachedWeighs = cachedWeighs.map((r) => (r.id === id ? { ...r, ...patch } : r));
-      // For simplicity, we only update the status_supply as an example
       if (patch.status_supply) {
-         await supabase.from('weigh_records').update({ status_supply: patch.status_supply }).eq('id', id);
+         await supabaseAdmin.from('weigh_records').update({ status_supply: patch.status_supply }).eq('id', id);
       }
     },
     remove: async (id: string) => {
       cachedWeighs = cachedWeighs.filter((r) => r.id !== id);
-      await supabase.from('weigh_records').delete().eq('id', id);
+      await supabaseAdmin.from('weigh_records').delete().eq('id', id);
     },
   },
   audit: {
     get: () => cachedAudit,
     add: (entry: AuditEntry) => {
       cachedAudit = [entry, ...cachedAudit].slice(0, 500);
-      // In a real app, this would also write to Supabase `audit_logs` table
     },
   },
   theme: {
@@ -120,9 +111,13 @@ export const store = {
   },
 };
 
-// Seed demo weigh data directly to Supabase if empty
+// Seed demo data directly to Supabase if empty
 export async function ensureSeed() {
   if (!isBrowser()) return;
+
+  // 1. Jalankan seeder akun demo ke Supabase
+  await seedSupabaseUsers();
+  
   if (store.seeded.get()) {
     await store.weighs.load();
     return;
@@ -155,7 +150,7 @@ export async function ensureSeed() {
     });
   }
   
-  const { data } = await supabase.from('weigh_records').insert(rows).select();
+  const { data } = await supabaseAdmin.from('weigh_records').insert(rows).select();
   if (data) {
      cachedWeighs = data.map(mapDbToWeighRecord);
   }

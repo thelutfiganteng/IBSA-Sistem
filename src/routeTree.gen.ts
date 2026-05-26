@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TimbanganRouteImport } from './routes/timbangan'
 import { Route as PriceIntelligenceRouteImport } from './routes/price-intelligence'
+import { Route as PetugasRouteImport } from './routes/petugas'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as KomoditasRouteImport } from './routes/komoditas'
@@ -20,6 +21,7 @@ import { Route as DistribusiRouteImport } from './routes/distribusi'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClusteringRouteImport } from './routes/clustering'
 import { Route as AnomalyDetectionRouteImport } from './routes/anomaly-detection'
+import { Route as AktivitasPetugasRouteImport } from './routes/aktivitas-petugas'
 import { Route as AiCenterRouteImport } from './routes/ai-center'
 import { Route as AiAnalyticsRouteImport } from './routes/ai-analytics'
 import { Route as IndexRouteImport } from './routes/index'
@@ -32,6 +34,11 @@ const TimbanganRoute = TimbanganRouteImport.update({
 const PriceIntelligenceRoute = PriceIntelligenceRouteImport.update({
   id: '/price-intelligence',
   path: '/price-intelligence',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PetugasRoute = PetugasRouteImport.update({
+  id: '/petugas',
+  path: '/petugas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -79,6 +86,11 @@ const AnomalyDetectionRoute = AnomalyDetectionRouteImport.update({
   path: '/anomaly-detection',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AktivitasPetugasRoute = AktivitasPetugasRouteImport.update({
+  id: '/aktivitas-petugas',
+  path: '/aktivitas-petugas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AiCenterRoute = AiCenterRouteImport.update({
   id: '/ai-center',
   path: '/ai-center',
@@ -99,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-analytics': typeof AiAnalyticsRoute
   '/ai-center': typeof AiCenterRoute
+  '/aktivitas-petugas': typeof AktivitasPetugasRoute
   '/anomaly-detection': typeof AnomalyDetectionRoute
   '/clustering': typeof ClusteringRoute
   '/dashboard': typeof DashboardRoute
@@ -108,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/komoditas': typeof KomoditasRoute
   '/laporan': typeof LaporanRoute
   '/login': typeof LoginRoute
+  '/petugas': typeof PetugasRoute
   '/price-intelligence': typeof PriceIntelligenceRoute
   '/timbangan': typeof TimbanganRoute
 }
@@ -115,6 +129,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-analytics': typeof AiAnalyticsRoute
   '/ai-center': typeof AiCenterRoute
+  '/aktivitas-petugas': typeof AktivitasPetugasRoute
   '/anomaly-detection': typeof AnomalyDetectionRoute
   '/clustering': typeof ClusteringRoute
   '/dashboard': typeof DashboardRoute
@@ -124,6 +139,7 @@ export interface FileRoutesByTo {
   '/komoditas': typeof KomoditasRoute
   '/laporan': typeof LaporanRoute
   '/login': typeof LoginRoute
+  '/petugas': typeof PetugasRoute
   '/price-intelligence': typeof PriceIntelligenceRoute
   '/timbangan': typeof TimbanganRoute
 }
@@ -132,6 +148,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ai-analytics': typeof AiAnalyticsRoute
   '/ai-center': typeof AiCenterRoute
+  '/aktivitas-petugas': typeof AktivitasPetugasRoute
   '/anomaly-detection': typeof AnomalyDetectionRoute
   '/clustering': typeof ClusteringRoute
   '/dashboard': typeof DashboardRoute
@@ -141,6 +158,7 @@ export interface FileRoutesById {
   '/komoditas': typeof KomoditasRoute
   '/laporan': typeof LaporanRoute
   '/login': typeof LoginRoute
+  '/petugas': typeof PetugasRoute
   '/price-intelligence': typeof PriceIntelligenceRoute
   '/timbangan': typeof TimbanganRoute
 }
@@ -150,6 +168,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-analytics'
     | '/ai-center'
+    | '/aktivitas-petugas'
     | '/anomaly-detection'
     | '/clustering'
     | '/dashboard'
@@ -159,6 +178,7 @@ export interface FileRouteTypes {
     | '/komoditas'
     | '/laporan'
     | '/login'
+    | '/petugas'
     | '/price-intelligence'
     | '/timbangan'
   fileRoutesByTo: FileRoutesByTo
@@ -166,6 +186,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-analytics'
     | '/ai-center'
+    | '/aktivitas-petugas'
     | '/anomaly-detection'
     | '/clustering'
     | '/dashboard'
@@ -175,6 +196,7 @@ export interface FileRouteTypes {
     | '/komoditas'
     | '/laporan'
     | '/login'
+    | '/petugas'
     | '/price-intelligence'
     | '/timbangan'
   id:
@@ -182,6 +204,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-analytics'
     | '/ai-center'
+    | '/aktivitas-petugas'
     | '/anomaly-detection'
     | '/clustering'
     | '/dashboard'
@@ -191,6 +214,7 @@ export interface FileRouteTypes {
     | '/komoditas'
     | '/laporan'
     | '/login'
+    | '/petugas'
     | '/price-intelligence'
     | '/timbangan'
   fileRoutesById: FileRoutesById
@@ -199,6 +223,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiAnalyticsRoute: typeof AiAnalyticsRoute
   AiCenterRoute: typeof AiCenterRoute
+  AktivitasPetugasRoute: typeof AktivitasPetugasRoute
   AnomalyDetectionRoute: typeof AnomalyDetectionRoute
   ClusteringRoute: typeof ClusteringRoute
   DashboardRoute: typeof DashboardRoute
@@ -208,6 +233,7 @@ export interface RootRouteChildren {
   KomoditasRoute: typeof KomoditasRoute
   LaporanRoute: typeof LaporanRoute
   LoginRoute: typeof LoginRoute
+  PetugasRoute: typeof PetugasRoute
   PriceIntelligenceRoute: typeof PriceIntelligenceRoute
   TimbanganRoute: typeof TimbanganRoute
 }
@@ -226,6 +252,13 @@ declare module '@tanstack/react-router' {
       path: '/price-intelligence'
       fullPath: '/price-intelligence'
       preLoaderRoute: typeof PriceIntelligenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/petugas': {
+      id: '/petugas'
+      path: '/petugas'
+      fullPath: '/petugas'
+      preLoaderRoute: typeof PetugasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -291,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnomalyDetectionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/aktivitas-petugas': {
+      id: '/aktivitas-petugas'
+      path: '/aktivitas-petugas'
+      fullPath: '/aktivitas-petugas'
+      preLoaderRoute: typeof AktivitasPetugasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ai-center': {
       id: '/ai-center'
       path: '/ai-center'
@@ -319,6 +359,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiAnalyticsRoute: AiAnalyticsRoute,
   AiCenterRoute: AiCenterRoute,
+  AktivitasPetugasRoute: AktivitasPetugasRoute,
   AnomalyDetectionRoute: AnomalyDetectionRoute,
   ClusteringRoute: ClusteringRoute,
   DashboardRoute: DashboardRoute,
@@ -328,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   KomoditasRoute: KomoditasRoute,
   LaporanRoute: LaporanRoute,
   LoginRoute: LoginRoute,
+  PetugasRoute: PetugasRoute,
   PriceIntelligenceRoute: PriceIntelligenceRoute,
   TimbanganRoute: TimbanganRoute,
 }

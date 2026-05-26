@@ -46,19 +46,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { theme, toggle } = useTheme();
   const [open, setOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [ready, setReady] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     if (mounted) {
-      ensureSeed();
+      ensureSeed().then(() => {
+        setReady(true);
+      });
       if (!user) navigate({ to: "/login" });
     }
   }, [mounted, user, navigate]);
 
-  if (!mounted || !user) {
+  if (!mounted || !user || !ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-        Memuat…
+        Memuat Data Supabase…
       </div>
     );
   }

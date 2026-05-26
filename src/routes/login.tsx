@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { login } from "@/lib/auth";
 import { DEMO_USERS, ROLE_LABEL } from "@/lib/seed";
 import { toast } from "sonner";
-import { Sparkles, Wheat } from "lucide-react";
+import { Sparkles, Wheat, Camera, Loader2 } from "lucide-react";
+import Webcam from "react-webcam";
+import { useRef, useCallback } from "react";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -39,6 +41,51 @@ function LoginPage() {
       navigate({ to: "/dashboard" });
     }
   };
+
+  const [useFace, setUseFace] = useState(false);
+  const [verifyingFace, setVerifyingFace] = useState(false);
+  const webcamRef = useRef<Webcam>(null);
+
+  const captureFace = useCallback(async () => {
+    if (!webcamRef.current) return;
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) return;
+
+    setVerifyingFace(true);
+    try {
+      // Convert base64 to blob
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
+
+      const formData = new FormData();
+      formData.append("file", blob, "face.jpg");
+
+      const apiUrl = import.meta.env.VITE_FACE_API_URL || "http://localhost:8000";
+      const apiRes = await fetch(`${apiUrl}/face/verify`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await apiRes.json();
+      if (!apiRes.ok) {
+        throw new Error(data.detail || "Wajah tidak dikenali");
+      }
+
+      // If matched, user object is returned from python backend
+      // We can map it to our frontend user. For now, let's just use quick login with the matched email
+      if (data.user && data.user.username) {
+        toast.success(`Wajah Cocok: ${data.user.full_name}`);
+        // Mock email format from username if needed, or if username is email
+        quick(data.user.username);
+      } else {
+        toast.error("Wajah cocok tetapi data pengguna tidak lengkap.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memverifikasi wajah");
+    } finally {
+      setVerifyingFace(false);
+    }
+  }, [webcamRef]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sidebar via-primary to-accent text-foreground">
@@ -99,6 +146,49 @@ function LoginPage() {
                 Masuk
               </Button>
             </form>
+
+            <div className="mt-4 flex items-center gap-2">
+              <div className="h-px flex-1 bg-border" />
+              <div className="text-xs text-muted-foreground uppercase">ATAU</div>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="mt-4">
+              {!useFace ? (
+                <Button variant="outline" className="w-full" onClick={() => setUseFace(true)}>
+                  <Camera className="mr-2 h-4 w-4" /> Login dengan Wajah (Biometrik)
+                </Button>
+              ) : (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="overflow-hidden rounded-md bg-black relative">
+                    <Webcam
+                      ref={webcamRef}
+                      audio={false}
+                      screenshotFormat="image/jpeg"
+                      className="w-full h-[200px] object-cover"
+                    />
+                    {verifyingFace && (
+                      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="text-sm mt-2 font-medium">Memverifikasi AI...</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" 
+                      onClick={captureFace}
+                      disabled={verifyingFace}
+                    >
+                      Pindai Wajah
+                    </Button>
+                    <Button variant="outline" onClick={() => setUseFace(false)} disabled={verifyingFace}>
+                      Batal
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="mt-6">
               <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">

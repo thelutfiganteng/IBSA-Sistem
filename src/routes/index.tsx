@@ -38,18 +38,22 @@ function LandingPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    ensureSeed();
-    const recompute = () => {
-      const weighs = store.weighs.get();
-      const base = computeRegionMetrics(weighs);
-      setMetrics(applyClusters(base));
-    };
-    recompute();
-    const id = setInterval(() => {
-      setTick((t) => t + 1);
+    let intervalId: any;
+    ensureSeed().then(() => {
+      const recompute = () => {
+        const weighs = store.weighs.get();
+        const base = computeRegionMetrics(weighs);
+        setMetrics(applyClusters(base));
+      };
       recompute();
-    }, 5000);
-    return () => clearInterval(id);
+      intervalId = setInterval(() => {
+        setTick((t) => t + 1);
+        recompute();
+      }, 5000);
+    });
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [mounted]);
 
   const stats = useMemo(() => {
